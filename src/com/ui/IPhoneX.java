@@ -5,6 +5,9 @@ import com.web.HttpsRequest;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -13,16 +16,19 @@ import java.util.List;
 
 import okhttp3.*;
 
+import javax.net.ssl.*;
+
 public class IPhoneX {
     private String cookie = "";
     private String cellNum;
     private String cellNumEnc;
+    private OkHttpClient okHttpClient;
     private final HashMap<String, List<Cookie>> cookieStore = new HashMap<>();
-
-    public void post_login(){
-        String url = "https://clientaccess.10086.cn/biz-orange/LN/uamrandcodelogin/login";
-        OkHttpClient okHttpClient = new OkHttpClient.Builder()
-                .cookieJar(new CookieJar() {
+    public IPhoneX(){
+        OkHttpClient.Builder mBuilder = new OkHttpClient.Builder();
+        mBuilder.sslSocketFactory(createSSLSocketFactory());
+        mBuilder.hostnameVerifier(new TrustAllHostnameVerifier());
+        mBuilder.cookieJar(new CookieJar() {
                     @Override
                     public void saveFromResponse(HttpUrl httpUrl, List<Cookie> list) {
                         cookieStore.put(httpUrl.host(), list);
@@ -33,19 +39,93 @@ public class IPhoneX {
                         List<Cookie> cookies = cookieStore.get(httpUrl.host());
                         return cookies != null ? cookies : new ArrayList<Cookie>();
                     }
-                })
-                .build();
+                });
+        okHttpClient = mBuilder.build();
+        System.out.println("create client success");
+    }
 
+    /**
+     * 默认信任所有的证书
+     * TODO 最好加上证书认证，主流App都有自己的证书
+     *
+     * @return
+     */
+    private static SSLSocketFactory createSSLSocketFactory() {
 
+        SSLSocketFactory sSLSocketFactory = null;
+
+        try {
+            SSLContext sc = SSLContext.getInstance("TLS");
+            sc.init(null, new TrustManager[]{new TrustAllManager()},
+                    new SecureRandom());
+            sSLSocketFactory = sc.getSocketFactory();
+        } catch (Exception e) {
+        }
+
+        return sSLSocketFactory;
+    }
+
+    private static class TrustAllManager implements X509TrustManager {
+        @Override
+        public void checkClientTrusted(X509Certificate[] chain, String authType)
+                throws CertificateException {
+        }
+
+        @Override
+        public void checkServerTrusted(X509Certificate[] chain, String authType)
+
+                throws CertificateException {
+        }
+
+        @Override
+        public X509Certificate[] getAcceptedIssuers() {
+            return new X509Certificate[0];
+        }
+    }
+
+    private static class TrustAllHostnameVerifier implements HostnameVerifier {
+        @Override
+        public boolean verify(String hostname, SSLSession session) {
+            return true;
+        }
+    }
+    public  boolean sendMsg(){
+        String url="https://clientaccess.10086.cn/biz-orange/LN/uamrandcode/sendMsgLogin";
         MediaType JSON = MediaType.parse("application/json; charset=utf-8");
+        RequestBody body = RequestBody.create(JSON,"\n" +
+                "{\"ak\":\"F4AA34B89513F0D087CA0EF11A3277469DC74905\",\"cid\":\"ZQ7NGnFe+2Ob+ELjX6nA80oNw9raJFK96ckDGM/SJqdKa110jeool++QXR4R/VmoUbYy1yY6S0Tv7LQOgp8OxK/6BUQ0L7PEE0y+VwFEAMA=\",\"city\":\"0755\",\"ctid\":\"ZQ7NGnFe+2Ob+ELjX6nA80oNw9raJFK96ckDGM/SJqdKa110jeool++QXR4R/VmoUbYy1yY6S0Tv7LQOgp8OxK/6BUQ0L7PEE0y+VwFEAMA=\",\"cv\":\"4.0.0\",\"en\":\"0\",\"imei\":\"358811074939040\",\"nt\":\"3\",\"prov\":\"200\",\"reqBody\":{\"cellNum\":\"15013894358\"},\"sb\":\"samsung\",\"sn\":\"SM-C7000\",\"sp\":\"1080x1920\",\"st\":\"1\",\"sv\":\"6.0.1\",\"t\":\"\",\"tel\":\"99999999999\",\"xc\":\"A2061\",\"xk\":\"8134206949ee8bbc89e534902056abc3b91c333ac8f5eb629e36cb0a3b37825736bf236e\"}");
+        Request request = new Request.Builder()
+                .url(url)
+                .post(body)
+                .addHeader("Host", "clientaccess.10086.cn")
+                .addHeader("Connection", "Keep-Alive")
+                .addHeader("Accept-Encoding", "gzip")
+                .addHeader("User-Agent", "okhttp/3.8.1")
+                .addHeader("xs", "8f516654520c7e439a66e9cff7e3e232")
 
-        RequestBody body = RequestBody.create(JSON,"{\"ak\":\"F4AA34B89513F0D087CA0EF11A3277469DC74905\",\"cid\":\"ZQ7NGnFe+2Ob+ELjX6nA80oNw9raJFK96ckDGM/SJqdKa110jeool++QXR4R/VmoUbYy1yY6S0Tv7LQOgp8OxK/6BUQ0L7PEE0y+VwFEAMA=\",\"city\":\"0755\",\"ctid\":\"ZQ7NGnFe+2Ob+ELjX6nA80oNw9raJFK96ckDGM/SJqdKa110jeool++QXR4R/VmoUbYy1yY6S0Tv7LQOgp8OxK/6BUQ0L7PEE0y+VwFEAMA=\",\"cv\":\"4.0.0\",\"en\":\"0\",\"imei\":\"358811074939040\",\"nt\":\"3\",\"prov\":\"200\",\"reqBody\":{\"cellNum\":\"d0DHUrIOS9BKmxv5yVNYHhDkquHdpWn5yQ0JV2GPK+xrfOZzZNtdbvXXuAbuVOBdLR/urES+1bFvjjwBTzzFLPxbgmqp05ZA33ilOPBfFqRNYBFBf4JE3wmiQsMEAqftdVAug0QwbSwpGgdAi2gfLCPg9bIo6/jr7NgFbgTFnhs=\",\"imei\":\"358811074939040\",\"sendSmsFlag\":\"1\",\"verifyCode\":\"937293\"},\"sb\":\"samsung\",\"sn\":\"SM-C7000\",\"sp\":\"1080x1920\",\"st\":\"1\",\"sv\":\"6.0.1\",\"t\":\"\",\"tel\":\"99999999999\",\"xc\":\"A2061\",\"xk\":\"8134206949ee8bbc89e534902056abc3b91c333ac8f5eb629e36cb0a3b37825736bf236e\"}");
+                .build();
+        Call call = okHttpClient.newCall(request);
+        try {
+            Response response = call.execute();
+            String result = response.body().string();
+            System.out.println(result);
+            if (result.contains("\"retDesc\":\"SUCCESS\"")){
+                return true;
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
 
+        return false;
+    }
+    public void login(){
+        String url = "https://clientaccess.10086.cn/biz-orange/LN/uamrandcodelogin/login";
+        MediaType JSON = MediaType.parse("application/json; charset=utf-8");
+        RequestBody body = RequestBody.create(JSON,"{\"ak\":\"F4AA34B89513F0D087CA0EF11A3277469DC74905\",\"cid\":\"ZQ7NGnFe+2Ob+ELjX6nA80oNw9raJFK96ckDGM/SJqdKa110jeool++QXR4R/VmoUbYy1yY6S0Tv7LQOgp8OxK/6BUQ0L7PEE0y+VwFEAMA=\",\"city\":\"0755\",\"ctid\":\"ZQ7NGnFe+2Ob+ELjX6nA80oNw9raJFK96ckDGM/SJqdKa110jeool++QXR4R/VmoUbYy1yY6S0Tv7LQOgp8OxK/6BUQ0L7PEE0y+VwFEAMA=\",\"cv\":\"4.0.0\",\"en\":\"0\",\"imei\":\"358811074939040\",\"nt\":\"3\",\"prov\":\"200\",\"reqBody\":{\"cellNum\":\"d0DHUrIOS9BKmxv5yVNYHhDkquHdpWn5yQ0JV2GPK+xrfOZzZNtdbvXXuAbuVOBdLR/urES+1bFvjjwBTzzFLPxbgmqp05ZA33ilOPBfFqRNYBFBf4JE3wmiQsMEAqftdVAug0QwbSwpGgdAi2gfLCPg9bIo6/jr7NgFbgTFnhs=\",\"imei\":\"358811074939040\",\"sendSmsFlag\":\"1\",\"verifyCode\":\"241821\"},\"sb\":\"samsung\",\"sn\":\"SM-C7000\",\"sp\":\"1080x1920\",\"st\":\"1\",\"sv\":\"6.0.1\",\"t\":\"\",\"tel\":\"99999999999\",\"xc\":\"A2061\",\"xk\":\"8134206949ee8bbc89e534902056abc3b91c333ac8f5eb629e36cb0a3b37825736bf236e\"}");
         Request request = new Request.Builder()
                 .url(url)
                 .post(body)
                 .build();
-
         Call call = okHttpClient.newCall(request);
         try {
             Response response = call.execute();
@@ -56,47 +136,29 @@ public class IPhoneX {
 
     }
 
-
     public static void main(String args[]){
         IPhoneX phone = new IPhoneX();
         phone.cellNum = "15013894358";
-//        phone.cellNumEnc = "Kp+EfmC+vWsVCVhpusVdGQA0dk34I2B5N4wTDO1mnAmI6cWrRap6cjRAUZY2GPbTGhgeJrt5RjyvvQFyOIkd3WBQs/Zdr3xeF5NogFNgFFrjM6KgGyR/KQpFRv9qF0gKDqg1wUy4MtUSTRcaeGwcYfZ5yKGNYnwbwdxW7n48/BQ=";
-//        phone.cellNumEnc = "f/JN9/LDbj2oFm7rlZxS89JbEsk9G25b/85b6NTU7QtFjoGH5dkgrFYOHELNLjCbNwcAP/l9CQSkyGTlYwqvTvVqsgTenjaE23hvrYXIaa285mloUMaphjymwBf7PLfil0AXCDqSzzQkFR6XWPQVEXOCICD1J60b9czhvCnKMSs=";
-//        phone.cellNumEnc = "NkyUw4jDwFNw9grG8iuXwQjFOlcWD7eI6iR0pXd6wpG19oWB+QjzS7r2Nk99RNj/xu19SsJsMN0JrfdeFG4EUijhZ3ykP1p2KOZHoga1GKAZhXeiaxdP5n20yX4uALyFzVo3LIuCJcgi1VplQNZ1qZUheTy3uns2033f3F1h5Z8=";
         phone.cellNumEnc = "d0DHUrIOS9BKmxv5yVNYHhDkquHdpWn5yQ0JV2GPK+xrfOZzZNtdbvXXuAbuVOBdLR/urES+1bFvjjwBTzzFLPxbgmqp05ZA33ilOPBfFqRNYBFBf4JE3wmiQsMEAqftdVAug0QwbSwpGgdAi2gfLCPg9bIo6/jr7NgFbgTFnhs=";
         int count = 0;
-        phone.post_login();
-//        while (! phone.sendMsg()) {
-//            count += 1;
-//        }
-//        System.out.println("send msg retry total:" + String.valueOf(count));
-//
-//        count = 0;
-//        while (phone.cookie.equals("")) {
-//            phone.login("147619");
-//            count += 1;
-//        }
-//        System.out.println("login retry total:" + String.valueOf(count));
-//        count = 0;
-//        Date d = new Date();
-//        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-//        System.out.println("start time: " + sdf.format(d));
-//        while (true){
-//            phone.getRealFee();
+        while (! phone.sendMsg()) {
+            try {
+                Thread.sleep(1000);
+            }catch (InterruptedException e){
+
+            }
+            count += 1;
+
+        }
+        System.out.print("try send msg: " + String.valueOf(count));
+//        while (true) {
+//            phone.login();
 //            try {
-//                Thread.sleep(10000);
-//                count += 1;
-//                d = new Date();
-//                sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-//                System.out.println("current time: " + sdf.format(d));
-//            } catch (InterruptedException e) {
-//                e.printStackTrace();
+//                Thread.sleep(1000);
+//            }catch (InterruptedException e){
+//
 //            }
 //        }
-//        phone.getorderDetail();
-//        phone.getDefaultsReceivingAddrInfo();
-//        phone.submitOrder();
-
 
     }
     public static String getMd5(String plainText) {
@@ -254,55 +316,6 @@ public class IPhoneX {
         String param=strBuilder.toString();
         System.out.println(param);
         String result=httpsRequest.sendPost(param);
-        System.out.println(result);
-    }
-    public  boolean sendMsg(){
-        String url="https://clientaccess.10086.cn/biz-orange/LN/uamrandcode/sendMsgLogin";
-        HttpsRequest httpsRequest=new HttpsRequest(url);
-        httpsRequest.setRequestProperty("Host","clientaccess.10086.cn");
-        httpsRequest.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
-        httpsRequest.setRequestProperty("Connection", "keep-alive");
-        httpsRequest.setRequestProperty("User-Agent", "okhttp/3.8.1");
-        StringBuilder strBuilder=new StringBuilder();
-        String txt  = "{\"ak\":\"F4AA34B89513F0D087CA0EF11A3277469DC74905\",\"cid\":\"ZQ7NGnFe+2Ob+ELjX6nA80oNw9raJFK96ckDGM/SJqdKa110jeool++QXR4R/VmoUbYy1yY6S0Tv7LQOgp8OxK/6BUQ0L7PEE0y+VwFEAMA=\",\"city\":\"0755\",\"ctid\":\"ZQ7NGnFe+2Ob+ELjX6nA80oNw9raJFK96ckDGM/SJqdKa110jeool++QXR4R/VmoUbYy1yY6S0Tv7LQOgp8OxK/6BUQ0L7PEE0y+VwFEAMA=\",\"cv\":\"4.0.0\",\"en\":\"0\",\"imei\":\"358811074939040\",\"nt\":\"3\",\"prov\":\"200\",\"reqBody\":{\"cellNum\":\"15013894358\"},\"sb\":\"samsung\",\"sn\":\"SM-C7000\",\"sp\":\"1080x1920\",\"st\":\"1\",\"sv\":\"6.0.1\",\"t\":\"\",\"tel\":\"99999999999\",\"xc\":\"A2061\",\"xk\":\"8134206949ee8bbc89e534902056abc3b91c333ac8f5eb629e36cb0a3b37825736bf236e\"}";
-        strBuilder.append(txt);
-        String param=strBuilder.toString();
-        System.out.println(param);
-        String result=httpsRequest.sendPost(param);
-        System.out.println(result);
-        if (result.contains("\"retDesc\":\"SUCCESS\"")){
-            return true;
-        }
-        return false;
-    }
-    public  void login(String verifyCode){
-        String url="https://clientaccess.10086.cn/biz-orange/LN/uamrandcodelogin/login";
-        HttpsRequest httpsRequest=new HttpsRequest(url);
-        httpsRequest.setRequestProperty("Host","clientaccess.10086.cn");
-        httpsRequest.setRequestProperty("Accept", "text/json, text/javascript, */*; q=0.01");
-        httpsRequest.setRequestProperty("Accept-Encoding", "compress");
-        httpsRequest.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
-        httpsRequest.setRequestProperty("Connection", "keep-alive");
-        httpsRequest.setRequestProperty("User-Agent", "okhttp/3.8.1");
-//        long timeMillis = System.currentTimeMillis();
-//        String xs = Phone.getMd5(String.valueOf(timeMillis));
-//        httpsRequest.setRequestProperty("xs", "85860ac5987ee2da0611e166b062913f");
-
-        StringBuilder strBuilder=new StringBuilder();
-        String txt = "{\"ak\":\"F4AA34B89513F0D087CA0EF11A3277469DC74905\",\"cid\":\"ZQ7NGnFe+2Ob+ELjX6nA80oNw9raJFK96ckDGM/SJqdKa110jeool++QXR4R/VmoUbYy1yY6S0Tv7LQOgp8OxK/6BUQ0L7PEE0y+VwFEAMA=\",\"city\":\"0755\",\"ctid\":\"ZQ7NGnFe+2Ob+ELjX6nA80oNw9raJFK96ckDGM/SJqdKa110jeool++QXR4R/VmoUbYy1yY6S0Tv7LQOgp8OxK/6BUQ0L7PEE0y+VwFEAMA=\",\"cv\":\"4.0.0\",\"en\":\"0\",\"imei\":\"358811074939040\",\"nt\":\"3\",\"prov\":\"200\",\"reqBody\":{\"cellNum\":\"CELL_NUM_ENC\",\"imei\":\"358811074939040\",\"sendSmsFlag\":\"1\",\"verifyCode\":\"VERIFY_CODE\"},\"sb\":\"samsung\",\"sn\":\"SM-C7000\",\"sp\":\"1080x1920\",\"st\":\"1\",\"sv\":\"6.0.1\",\"t\":\"\",\"tel\":\"99999999999\",\"xc\":\"A2290\",\"xk\":\"8134206949ee8bbc89e534902056abc3b91c333ac8f5eb629e36cb0a3b37825736bf236e\"}";
-        txt = txt.replace("CELL_NUM_ENC", this.cellNumEnc);
-        txt = txt.replace("VERIFY_CODE", verifyCode);
-
-        strBuilder.append(txt);
-        String param=strBuilder.toString();
-        System.out.println(param);
-        String result=httpsRequest.sendPost(param);
-        String cookie = httpsRequest.getCookie();
-        if (null != cookie && "" != cookie){
-            cookie = cookie.replaceAll(" ","");
-            this.cookie = cookie;
-        }
-        System.out.println(cookie);
         System.out.println(result);
     }
 }
